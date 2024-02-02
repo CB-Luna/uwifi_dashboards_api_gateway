@@ -22,8 +22,8 @@ COPY . .
 RUN pip install -r requirements.txt
 # RUN pip install flask
 
-# Expone el puerto 8088
-EXPOSE 8088
+# Expone el puerto 8087
+EXPOSE 8087
 
 # Comando para ejecutar tu script
 CMD ["python", "api_gateway.py"]
