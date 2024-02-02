@@ -17,6 +17,7 @@ from pyspark.sql import Row
 from pyspark.sql import SQLContext
 from datetime import datetime
 from dateutil import tz
+from pyspark.sql import functions as F
 
 # Crea una sesión de Spark
 spark = SparkSession.builder.appName("InventarioDashboard").getOrCreate()
@@ -25,37 +26,37 @@ sqlContext = SQLContext(spark)
 
 # Salida
 output_api_url = "https://nsrprlygqaqgljpfggjh.supabase.co"
-output_api_key = "yJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zcnBybHlncWFxZ2xqcGZnZ2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAxNzU2MjUsImV4cCI6MjAxNTc1MTYyNX0.JQUJ2i2mZlygBys5Gd5elAL_00TM_U2vJrXlIVuOtbk"
+output_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zcnBybHlncWFxZ2xqcGZnZ2poIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAxNzU2MjUsImV4cCI6MjAxNTc1MTYyNX0.JQUJ2i2mZlygBys5Gd5elAL_00TM_U2vJrXlIVuOtbk"
 supabase_client_out: Client = create_client(output_api_url, output_api_key)
 
 
 def actualizar_registro_todos(
     id_existing_record,
-    tasa_descuento_minima,
-    tasa_descuento_maxima,
-    tasa_descuento_media,
-    tasa_descuento_moda,
-    tasa_descuento_promedio,
+    countGateways,
+    countAGateways,
+    countSIM,
+    countASIMs,
+    countBundle,
+    countABundle,
     id_existing_records,
     supabase_table,
 ):
     """
-    Función para actualizar o insertar un registro en Supabase para la tabla "indicadores_tasas_dashboard".
+    Función para actualizar o insertar un registro en Supabase para la tabla "inventory_dashboards".
 
     Args:
         id_existing_record: valor del registro existente que se va a actualizar (si aún no existe en la tabla su valor es 0) (int)
-        tasa_descuento_minima: valor minímo de tasa de descuento con enfoque general (int).
-        tasa_descuento_maxima: valor máximo de tasa de descuento con enfoque general (int).
-        tasa_descuento_media: valor de media de tasa de descuento con enfoque general (int).
-        tasa_descuento_moda: valor de moda de tasa de descuento con enfoque general (int).
-        tasa_descuento_promedio: valor promedio de tasa de descuento con enfoque general (float).
+        gateway_totals: cuantos registros hay del tipo Gateway (float),
+        gateway_actives: cuantos Gateways estan activos (float),
+        sims_total: Cuantos registros hay del tipo SIM (float),
+        sims_actives: Cunatos SIM estan activas (float),
+        bundles_total: Cuantos registros hay del tipo Bundle (float),
+        bundles_active: Cuantos Bundles estab actuvia (float),
         id_existing_records: lista de id records ya existentes
         supabase_table: nombre de la tabla de supabase donde se hace el CRUD de datos
     Returns:
         Null.
     """
-    # Realiza una consulta para verificar si el registro existe
-    condition = "TODOS"
     # Verifica si ya existe el registro con "id_existing_record" actual en Supabase
     if id_existing_record != 0:
         # Se realiza el UPDATE del registro
@@ -63,11 +64,12 @@ def actualizar_registro_todos(
             supabase_client_out.table(supabase_table)
             .update(
                 {
-                    "tasa_minima": tasa_descuento_minima,
-                    "tasa_maxima": tasa_descuento_maxima,
-                    "moda": tasa_descuento_moda,
-                    "media": tasa_descuento_media,
-                    "promedio": tasa_descuento_promedio,
+                    "gateway_totals": countGateways,
+                    "gateway_actives": countAGateways,
+                    "sims_total": countSIM,
+                    "sims_actives": countASIMs,
+                    "bundles_total": countBundle,
+                    "bundles_active": countABundle,
                 }
             )
             .eq("id", id_existing_record)
@@ -78,35 +80,34 @@ def actualizar_registro_todos(
             # Se quita el valor del "id" del registro, con la condición que exista en la lista "id_existing_records"
             if id_existing_record in id_existing_records:
                 id_existing_records.remove(id_existing_record)
-            print(f"Registro actualizado: {condition}")
+            print(f"Registro actualizado con id: {id_existing_record}")
         else:
-            print(f"Error al actualizar registro {condition}: {error}")
+            print(f"Error al actualizar registro con id: {id_existing_record}: {error}")
     else:
         # Se realiza el CREATE del registro
         responseCreate = (
             supabase_client_out.table(supabase_table)
             .insert(
                 {
-                    "tasa_minima": tasa_descuento_minima,
-                    "tasa_maxima": tasa_descuento_maxima,
-                    "moda": tasa_descuento_moda,
-                    "media": tasa_descuento_media,
-                    "promedio": tasa_descuento_promedio,
-                    "id_analisis": condition,
-                    "cliente": "Todos",
+                    "gateway_totals": countGateways,
+                    "gateway_actives": countAGateways,
+                    "sims_total": countSIM,
+                    "sims_actives": countASIMs,
+                    "bundles_total": countBundle,
+                    "bundles_active": countABundle,
                 }
             )
             .execute()
         )
         # Verifica la respuesta exitosa y maneja errores si es necesario
         if responseCreate.data:
-            print(f"Registro creado: {condition}")
+            print(f"Registro creado con id: {responseCreate.data[0]['id']}")
         else:
-            print(f"Error al crear registro {condition}: {error}")
+            print(f"Error al crear registro: {error}")
 
 
 # Función principal del Proceso
-# if __name__ == "__main__":
+#if __name__ == "__main__":
 def main():
     try:
         # Define el esquema personalizado
@@ -114,6 +115,7 @@ def main():
             [
                 StructField("inventory_product_id", IntegerType(), False),
                 StructField("name", StringType(), False),
+                StructField("type", StringType(), False),
                 StructField("location", StringType(), False),
                 StructField("status", StringType(), False),
                 # El valor puede ser Null (True)
@@ -146,6 +148,7 @@ def main():
                 Row(
                     productID=response.get("inventory_product_id", None),
                     productName=response.get("name", None),
+                    productType=response.get("type", None),
                     productLocation=response.get("location", None),
                     productStatus=response.get("status", None),
                     productCreationDate=response.get("created_at", None),
@@ -158,54 +161,82 @@ def main():
             randomDF = responseDF.sample(False, 0.5).limit(10)
             # Muestra 10 registros aleatorios del DataFrame
             randomDF.show()
+            today_date = datetime.now(tz.tzutc())
+            current_date = today_date.strftime("%Y-%m-%d")
             # Verifica si el DataFrame tiene contenido
             if responseDF.isEmpty() == False:
                 # <<< CÁLCULOS >>>
-                tasa_descuento_minima = responseDF.agg(
-                    {"tasa_descuento": "min"}
-                ).collect()[0][0]
-                tasa_descuento_maxima = responseDF.agg(
-                    {"tasa_descuento": "max"}
-                ).collect()[0][0]
-                # Agrupa por la columna 'tasa_descuento' y cuenta la frecuencia de cada valor
-                moda_result = responseDF.groupBy("tasa_descuento").count()
-                # Encuentra el valor con la frecuencia máxima (moda)
-                tasa_descuento_moda = moda_result.orderBy(col("count").desc()).first()[
-                    "tasa_descuento"
-                ]
-                # Calcula la media de la columna 'tasa_descuento'
-                media_result = responseDF.agg(
-                    avg("tasa_descuento").alias("media_tasa_descuento")
-                )
-                # Recupera el valor de la media
-                tasa_descuento_media = media_result.first()["media_tasa_descuento"]
-                # Calcula el promedio de la columna 'tasa_descuento'
-                promedio_result = responseDF.agg(
-                    avg("tasa_descuento").alias("promedio_tasa_descuento")
-                )
-                # Recupera el valor del promedio
-                tasa_descuento_promedio = promedio_result.first()[
-                    "promedio_tasa_descuento"
-                ]
+
+                # Contar el número de registros donde la columna "productType" tiene el valor "gateway"
+                countGateways = responseDF.filter(
+                    (col("type") == "Gateway")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+                # Contar el nuemero de registros donde sean Gateway la columna "status" tiene el valor de Connected
+                countAGateways = responseDF.filter(
+                    (col("type") == "Gateway")
+                    & (col("status") == "Connected")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+                # Contar los gateway de location
+                # gatewayLocation = responseDF.groupBy("location", "type").agg(
+                #     F.count("*").alias("count_per_location_and_type")
+                # )
+                # Contar los gateway de la location B
+                # countGatewaysB = responseDF.filter(
+                #     (col("type") == "Gateway") & (col("location") == "B")
+                # ).count()
+                # Contar el número de registros donde la columna "productType" contiene la palabra "SIM"
+                countSIM = responseDF.filter(
+                    (col("type") == "SIM")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+                # Contar el nuemero de registros donde sean SIM la columna "status" tiene el valor de Connected
+                countASIMs = responseDF.filter(
+                    (col("type") == "SIM")
+                    & (col("status") == "Connected")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+                # Contar el número de registros donde la columna "productType" contiene la palabra "Bundle"
+                countBundle = responseDF.filter(
+                    (col("type") == "Bundle")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+                # Contar el nuemero de registros donde sean Bundle la columna "status" tiene el valor de Connected
+                countABundle = responseDF.filter(
+                    (col("type") == "Bundle")
+                    & (col("status") == "Connected")
+                    & (F.date_format("created_at", "yyyy-MM-dd") == current_date)
+                ).count()
+
+                # print(f"${countAGateways}$")
+                # print("------------------")
+                # print(countGateways)
+                # print("------------------")
+                # print(countSIM)
+                # print("------------------")
+                # print(countASIMs)
+                # print("------------------")
+                # print(countBundle)
+                # print("------------------")
+                # print(countABundle)
+
                 # <<< INSERCIÓN >>>
                 # Actualiza, inserta o elimina datos en la tabla de Supabase
                 # Obtener la fecha actual en el formato correcto
-                fecha_actual_inicio = datetime.now(tz.tzutc()).strftime(
-                    "%Y-%m-%dT00:00:00.%f%z"
-                )
-                fecha_actual_fin = datetime.now(tz.tzutc()).strftime(
-                    "%Y-%m-%dT23:59:59.%f%z"
-                )
+                fecha_actual_inicio = today_date.strftime("%Y-%m-%dT00:00:00.%f%z")
+                fecha_actual_fin = today_date.strftime("%Y-%m-%dT23:59:59.%f%z")
                 # Realiza una consulta SQL para recuperar los valores de "id" de los registros en Supabase
                 queryStoredData = "id"
+                print("-------------Consulta-----------------")
                 responseStoredData = (
                     supabase_client_out.table(supabase_table)
                     .select(queryStoredData)
-                    .eq("id_analisis", "TODOS")
                     .gte("created_at", f"{fecha_actual_inicio}")
                     .lte("created_at", f"{fecha_actual_fin}")
                     .execute()
                 )
+                print("------Se Realizo la Consulta------")
                 # Verifica si hubo un error en la consulta
                 if responseStoredData.data:
                     # Almacena los valores de "id" en una lista
@@ -222,11 +253,12 @@ def main():
                     )
                 actualizar_registro_todos(
                     id_existing_record,
-                    tasa_descuento_minima,
-                    tasa_descuento_maxima,
-                    tasa_descuento_media,
-                    tasa_descuento_moda,
-                    tasa_descuento_promedio,
+                    countGateways,
+                    countAGateways,
+                    countSIM,
+                    countASIMs,
+                    countBundle,
+                    countABundle,
                     id_existing_records,
                     supabase_table,
                 )
