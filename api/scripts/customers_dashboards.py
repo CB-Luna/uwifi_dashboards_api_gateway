@@ -159,33 +159,26 @@ def main():
                 # <<< CÁLCULOS >>>
 
                 # Contar los registros por la fecha de creación del pedido igual a la fecha actual
-                countCustomers = responseDF.count()
+                countCustomers = responseDF.filter(
+                    col("created_at") == current_date
+                ).count()
 
-                # Contar el nuemero de registros donde sean Active
+                # Contar el número de registros donde el status sea "Active" y fueron creados hoy
                 countActive = responseDF.filter(
-                    # (col("order_creation").cast("date") == current_date)
-                    (col("status") == "Active")
+                    (col("status") == "Active") & (col("created_at") == current_date)
                 ).count()
-                # Contar el nuemero de registros donde sean order_type=2 aka Testing Router
+
+                # Contar el número de registros donde el status sea "Lead" y fueron creados hoy
                 countLead = responseDF.filter(
-                    # (col("order_creation").cast("date") == current_date)
-                    (col("status") == "Lead")
+                    (col("status") == "Lead") & (col("created_at") == current_date)
                 ).count()
-                # # Filtrar los datos por la fecha actual
-                # filtered_data = responseDF.filter(
-                #     F.to_date("order_creation") == F.lit(current_date)
-                # )
-                result = responseDF.groupBy("status", "created_at").agg(
+                # Filtrar los datos por la fecha actual
+                filteredDF = responseDF.filter(col("created_at") == current_date)
+                # Agrupar por "status" y "created_at" y contar los registros y recopilar los "customer_id"
+                result = filteredDF.groupBy("status", "created_at").agg(
                     count("customer_id").alias("count"),
                     collect_list("customer_id").alias("customer_ids"),
                 )
-
-                # result = (
-                #     responseDF.groupBy("status","created_at")
-                #     .agg({"customer_id": "count", "customer_id": "collect_list"})
-                #     .withColumnRenamed("count(customer_id)", "count")
-                #     .withColumnRenamed("collect_list(customer_id)", "customer_ids")
-                # )
                 # Convertir el DataFrame resultante a JSON y recopilar los resultados
                 json_result = result.toJSON().collect()
 
@@ -248,8 +241,8 @@ def main():
                         supabase_client_out.table(supabase_table).delete().eq(
                             "id", record
                         ).execute()  # Elimina registro
-            else:
-                print("El DataFrame no contiene datos.")
+                else:
+                    print("El DataFrame no contiene datos.")
                 spark.stop()
             return "Successfull Process", True
         else:
