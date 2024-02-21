@@ -11,7 +11,7 @@ from pyspark.sql.types import (
     StructField,
     StructType,
 )
-from pyspark.sql.functions import col, avg
+from pyspark.sql.functions import col, avg, collect_list, count, to_date
 from pyspark.sql import Row
 from pyspark.sql import SQLContext
 from datetime import datetime
@@ -31,12 +31,9 @@ supabase_client_out: Client = create_client(output_api_url, output_api_key)
 
 def actualizar_registro_todos(
     id_existing_record,
-    countOrders,
-    countShipping,
-    countTesting,
-    countPackaging,
-    countDelivering,
-    countProvisioning,
+    countCustomers,
+    countActive,
+    countLead,
     json_result_clean,
     id_existing_records,
     supabase_table,
@@ -47,12 +44,10 @@ def actualizar_registro_todos(
     Args:
         id_existing_record: valor del registro existente que se va a actualizar (si aún no existe en la tabla su valor es 0) (int)
         orders_totals: cuantas orders hay (float),
-        shipping_totals: cuantos orders son shipping (float),
-        testing_totals: Cuantos orders son testing (float),
-        packaging_totals: Cunatos orders son packaging (float),
-        delivering_totals: Cuantos orders son delivering (float),
-        provisioning_totals: Cuantos orders son provisioning (float),
-        orders_by_client: Json con los registros de las ordenes por cliente
+        countCustomers: Cuantos customers hay el dia de hoy (float),
+        countActive: Cuantos customers estan activos (float),
+        countLead: Cuantos customers son del tipo Lead (float),
+        json_result_clean: json de los customers por tipo y sus ids,
         id_existing_records: lista de id records ya existentes
         supabase_table: nombre de la tabla de supabase donde se hace el CRUD de datos
     Returns:
@@ -65,13 +60,10 @@ def actualizar_registro_todos(
             supabase_client_out.table(supabase_table)
             .update(
                 {
-                    "orders_totals": countOrders,
-                    "shipping_totals": countShipping,
-                    "testing_totals": countTesting,
-                    "packaging_totals": countPackaging,
-                    "delivering_totals": countDelivering,
-                    "provisioning_totals": countProvisioning,
-                    "orders_by_client": json_result_clean,
+                    "customers_totals": countCustomers,
+                    "active_totals": countActive,
+                    "lead_totals": countLead,
+                    "new_customers_id": json_result_clean,
                 }
             )
             .eq("id", id_existing_record)
@@ -91,13 +83,10 @@ def actualizar_registro_todos(
             supabase_client_out.table(supabase_table)
             .insert(
                 {
-                    "customer_id": countOrders,
-                    "created_at": countShipping,
-                    "testing_totals": countTesting,
-                    "packaging_totals": countPackaging,
-                    "delivering_totals": countDelivering,
-                    "provisioning_totals": countProvisioning,
-                    "orders_by_client": json_result_clean,
+                    "customers_totals": countCustomers,
+                    "active_totals": countActive,
+                    "lead_totals": countLead,
+                    "new_customers_id": json_result_clean,
                 }
             )
             .execute()
@@ -110,8 +99,8 @@ def actualizar_registro_todos(
 
 
 # Función principal del Proceso
-if __name__ == "__main__":
-#def main():
+#if __name__ == "__main__":
+def main():
     try:
         # Define el esquema personalizado
         schema = StructType(
@@ -128,7 +117,7 @@ if __name__ == "__main__":
         id_existing_record = 0
 
         # Define la tabla donde se va a hacer el CRUD de Datos
-        supabase_table = "orders_dashboards"
+        supabase_table = "customer_dashboards"
         # Entrada
         # API de Entrada de Supabase
         input_api_url = "https://nsrprlygqaqgljpfggjh.supabase.co/rest/v1/customer?select=customer_id,created_at,first_name,last_name,status"
@@ -158,6 +147,8 @@ if __name__ == "__main__":
             # <<< TRANSFORMACIÓN >>>
             # Crea un DataFrame a partir de la lista de objetos Row y el esquema
             responseDF = sqlContext.createDataFrame(responseRow, schema=schema)
+            # Convierte la columna 'created_at' al formato de fecha (YYYY-MM-DD)
+            responseDF = responseDF.withColumn("created_at", to_date("created_at"))
             randomDF = responseDF.sample(False, 0.5).limit(10)
             # Muestra 10 registros aleatorios del DataFrame
             randomDF.show()
@@ -168,78 +159,47 @@ if __name__ == "__main__":
                 # <<< CÁLCULOS >>>
 
                 # Contar los registros por la fecha de creación del pedido igual a la fecha actual
-                countCustomers = responseDF.filter(
-                    col("created_at").cast("date") == current_date
-                ).count()
+                countCustomers = responseDF.count()
 
-                # Contar el nuemero de registros donde sean order_type=1 aka Shipping Router
-                countShipping = responseDF.filter(
-                    (col("order_creation").cast("date") == current_date)
-                    & (col("order_type_id") == 1)
+                # Contar el nuemero de registros donde sean Active
+                countActive = responseDF.filter(
+                    # (col("order_creation").cast("date") == current_date)
+                    (col("status") == "Active")
                 ).count()
                 # Contar el nuemero de registros donde sean order_type=2 aka Testing Router
-                countTesting = responseDF.filter(
-                    (col("order_creation").cast("date") == current_date)
-                    & (col("order_type_id") == 2)
+                countLead = responseDF.filter(
+                    # (col("order_creation").cast("date") == current_date)
+                    (col("status") == "Lead")
                 ).count()
-                # Contar el nuemero de registros donde sean order_type=3 aka Packaging Router
-                countPackaging = responseDF.filter(
-                    (col("order_creation").cast("date") == current_date)
-                    & (col("order_type_id") == 3)
-                ).count()
-                # Contar el nuemero de registros donde sean order_type=4 aka Delivering Router
-                countDelivering = responseDF.filter(
-                    (col("order_creation").cast("date") == current_date)
-                    & (col("order_type_id") == 4)
-                ).count()
-                # Contar el nuemero de registros donde sean order_type=5 aka Provisioning Router
-                countProvisioning = responseDF.filter(
-                    (col("order_creation").cast("date") == current_date)
-                    & (col("order_type_id") == 5)
-                ).count()
-                # Filtrar los datos por la fecha actual
-                filtered_data = responseDF.filter(
-                    F.to_date("order_creation") == F.lit(current_date)
+                # # Filtrar los datos por la fecha actual
+                # filtered_data = responseDF.filter(
+                #     F.to_date("order_creation") == F.lit(current_date)
+                # )
+                result = responseDF.groupBy("status", "created_at").agg(
+                    count("customer_id").alias("count"),
+                    collect_list("customer_id").alias("customer_ids"),
                 )
 
-                # Agrupar por "customer_id" y contar la cantidad total de registros por cada cliente
-                total_orders_per_customer = filtered_data.groupBy("customer_id").agg(
-                    F.count("*").alias("total_orders")
-                )
-
-                # Agrupar por "customer_id" y "order_type" y contar la cantidad de registros por cada combinación
-                orders_per_customer_and_type = filtered_data.groupBy(
-                    "customer_id", "order_type"
-                ).agg(F.count("*").alias("count_per_order_type"))
-
-                # Unir los resultados para obtener el conteo total de pedidos y el conteo por tipo de pedido para cada cliente
-                result = total_orders_per_customer.join(
-                    orders_per_customer_and_type, "customer_id", "left"
-                )
-
+                # result = (
+                #     responseDF.groupBy("status","created_at")
+                #     .agg({"customer_id": "count", "customer_id": "collect_list"})
+                #     .withColumnRenamed("count(customer_id)", "count")
+                #     .withColumnRenamed("collect_list(customer_id)", "customer_ids")
+                # )
                 # Convertir el DataFrame resultante a JSON y recopilar los resultados
                 json_result = result.toJSON().collect()
 
                 # Eliminar los caracteres de escape adicionales de cada cadena JSON
                 json_result_clean = [json.loads(row) for row in json_result]
 
-
-                # print("------count orders------------")
-                # print(countOrders)
-                # print("------count shipping------------")
-                # print(countShipping)
-                # print("-------count testing-----------")
-                # print(countTesting)
-                # print("-------count packaging-----------")
-                # print(countPackaging)
-                # print("-------count delivering-----------")
-                # print(countDelivering)
-                # print("-------count provisioning-----------")
-                # print(countProvisioning)
-                # print("-------result-----------")
-                # print(result)
-                # print("--------Json----------")
-                # print(json_string)
+                # print("------count customers------------")
+                # print(countCustomers)
+                # print("------count Active------------")
+                # print(countActive)
+                # print("-------count Lead-----------")
+                # print(countLead)
+                # print("-------json-----------")
+                # print(json_result_clean)
 
                 # <<< INSERCIÓN >>>
                 # Actualiza, inserta o elimina datos en la tabla de Supabase
@@ -274,11 +234,8 @@ if __name__ == "__main__":
                 actualizar_registro_todos(
                     id_existing_record,
                     countCustomers,
-                    countShipping,
-                    countTesting,
-                    countPackaging,
-                    countDelivering,
-                    countProvisioning,
+                    countActive,
+                    countLead,
                     json_result_clean,
                     id_existing_records,
                     supabase_table,
@@ -294,11 +251,11 @@ if __name__ == "__main__":
             else:
                 print("El DataFrame no contiene datos.")
                 spark.stop()
-            #return "Successfull Process", True
+            return "Successfull Process", True
         else:
             resultado = "Fail to recover data from Supabase Client"
-            #return resultado, False
+            return resultado, False
     except Exception as e:
         # Manejo de otras excepciones
         resultado = f"Error: {str(e)}"
-        #return resultado, False
+        return resultado, False

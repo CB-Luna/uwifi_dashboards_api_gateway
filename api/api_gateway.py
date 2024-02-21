@@ -5,6 +5,7 @@ from datetime import datetime
 from scripts import inventario_dashboards
 from scripts import orders_dashboards
 from scripts import customers_dashboards
+from scripts import support_dashboards
 
 app = Flask(__name__)
 CORS(app)  # Habilita CORS para toda la aplicación
@@ -111,6 +112,41 @@ def customer_dashboards_function():
                 jsonify(
                     {
                         "message": f"Failed process customer_dashboards_function on {fecha_hoy}, details: {result}"
+                    }
+                )
+            )
+        return response
+
+@app.route("/apigateway/update/support_dashboards", methods=["GET", "OPTIONS"])
+def support_dashboards_function():
+    if request.method == "OPTIONS":
+        response = make_response()
+        # Agregar headers correspondientes, dependiendo el método
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET,OPTIONS"  # Agregar método POST, DELETE, FETCH cuando se requiera
+        )
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    if request.method == "GET":
+        print("Calling to SupportDashboards")
+        result, bool = support_dashboards.main()
+        # Getting date today
+        fecha_hoy = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if bool:
+            response = make_response(
+                jsonify(
+                    {
+                        "message": f"Successfull process support_dashboards_function on {fecha_hoy}"
+                    }
+                )
+            )
+        else:
+            response = make_response(
+                jsonify(
+                    {
+                        "message": f"Failed process support_dashboards_function on {fecha_hoy}, details: {result}"
                     }
                 )
             )

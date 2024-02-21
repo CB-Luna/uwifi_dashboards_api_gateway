@@ -55,6 +55,9 @@ def actualizar_registro_todos(
         sims_actives: Cunatos SIM estan activas (float),
         bundles_total: Cuantos registros hay del tipo Bundle (float),
         bundles_active: Cuantos Bundles estab actuvia (float),
+        json_result_clean: json con los registros por type y location (jsonb),
+        sim_data: json con los registros de los SIMs (jsonb),
+        gateway_data: json con los registros de los Gateways (jsonb)
         id_existing_records: lista de id records ya existentes
         supabase_table: nombre de la tabla de supabase donde se hace el CRUD de datos
     Returns:
